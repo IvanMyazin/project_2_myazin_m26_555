@@ -1,5 +1,5 @@
 .venv
 dist/
-__pycache__/
+src/primitive_db/__pycache__
 *.egg-info
 *.py[cod]
