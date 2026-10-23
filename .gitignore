@@ -4,3 +4,4 @@ src/primitive_db/__pycache__
 *.egg-info
 *.py[cod]
 db_meta.json
+data/
