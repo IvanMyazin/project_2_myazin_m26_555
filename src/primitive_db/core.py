@@ -6,7 +6,7 @@ def create_table(metadata, table_name, columns):
         print(f'Ошибка: Таблица "{table_name}" уже существует!')
         return metadata
 
-    new_columns = ["ID: int"]
+    new_columns = ["ID:int"]
 
     for column in columns:
         if ":" not in column:
@@ -42,3 +42,5 @@ def drop_table(metadata, table_name):
     print(f'Таблица "{table_name}" успешно удалена.')
 
     return metadata
+
+
