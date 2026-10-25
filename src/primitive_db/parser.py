@@ -1,4 +1,5 @@
 def parse_value(value):
+    """Преобразовать текст в int, bool или строку в двойных кавычках."""
     value = value.strip()
 
     if value.startswith('"') and value.endswith('"'):
@@ -17,6 +18,7 @@ def parse_value(value):
 
 
 def parse_condition(condition):
+    """Разобрать одно условие вида age = 28 в словарь."""
     if "=" not in condition:
         raise ValueError("В условии отсутствует знак =.")
 
@@ -31,14 +33,17 @@ def parse_condition(condition):
 
 
 def parse_where_clause(condition):
+    """Разобрать условие поиска записей."""
     return parse_condition(condition)
 
 
 def parse_set_clause(condition):
+    """Разобрать столбец и новое значение для обновления."""
     return parse_condition(condition)
 
 
 def parse_values(values_text):
+    """Разобрать список значений в круглых скобках для insert."""
     values_text = values_text.strip()
 
     if not values_text.startswith("(") or not values_text.endswith(")"):
