@@ -3,6 +3,7 @@ import shlex
 from prettytable import PrettyTable
 
 from .core import create_table, delete, drop_table, insert, select, update
+from .decorators import create_cacher
 from .parser import parse_set_clause, parse_values, parse_where_clause
 from .utils import load_metadata, load_table_data, save_metadata, save_table_data
 
@@ -50,10 +51,14 @@ def get_columns(metadata, table_name):
 
 def run():
     print_help()
+    cache_result = create_cacher()
 
     while True:
-        metadata = load_metadata(FILEPATH)
-        user_input = input("Введите команду: ").strip()
+        try:
+            user_input = input("Введите команду: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nВыход из программы.")
+            break
 
         if not user_input:
             print("Введите команду.")
@@ -61,6 +66,9 @@ def run():
 
         try:
             args = shlex.split(user_input)
+            if not args or not args[0]:
+                print("Введите команду.")
+                continue
         except ValueError as error:
             print(f"Ошибка: {error}")
             continue
@@ -68,6 +76,7 @@ def run():
         command = args[0]
 
         try:
+            metadata = load_metadata(FILEPATH)
             match command:
                 case "create_table":
                     if len(args) < 3:
@@ -76,8 +85,10 @@ def run():
 
                     table_name = args[1]
                     columns = args[2:]
-                    metadata = create_table(metadata, table_name, columns)
-                    save_metadata(FILEPATH, metadata)
+                    result = create_table(metadata, table_name, columns)
+                    if result is not None:
+                        save_metadata(FILEPATH, result)
+                        cache_result = create_cacher()
 
                 case "list_tables":
                     if not metadata:
@@ -92,8 +103,10 @@ def run():
                         continue
 
                     table_name = args[1]
-                    metadata = drop_table(metadata, table_name)
-                    save_metadata(FILEPATH, metadata)
+                    result = drop_table(metadata, table_name)
+                    if result is not None:
+                        save_metadata(FILEPATH, result)
+                        cache_result = create_cacher()
 
                 case "insert":
                     if len(args) < 5 or args[1] != "into":
@@ -114,12 +127,12 @@ def run():
                         print(f'Ошибка: Таблица "{table_name}" не существует.')
                         continue
 
-                    old_data = load_table_data(table_name)
                     values = parse_values(values_text)
                     new_data = insert(metadata, table_name, values)
 
-                    if len(new_data) > len(old_data):
+                    if new_data is not None:
                         save_table_data(table_name, new_data)
+                        cache_result = create_cacher()
 
                 case "select":
                     if len(args) < 3 or args[1] != "from":
@@ -132,14 +145,25 @@ def run():
                         print(f'Ошибка: Таблица "{table_name}" не существует.')
                         continue
 
-                    table_data = load_table_data(table_name)
                     where_clause = None
 
                     if " where " in user_input:
                         condition = user_input.split(" where ", 1)[1]
                         where_clause = parse_where_clause(condition)
 
-                    rows = select(table_data, where_clause)
+                    condition_key = None
+                    if where_clause is not None:
+                        column = list(where_clause.keys())[0]
+                        value = where_clause[column]
+                        condition_key = (column, type(value).__name__, value)
+
+                    key = (table_name, condition_key)
+                    rows = cache_result(
+                        key,
+                        lambda: select(load_table_data(table_name), where_clause),
+                    )
+                    if rows is None:
+                        continue
                     columns = get_columns(metadata, table_name)
                     print_table(rows, columns)
 
@@ -161,13 +185,17 @@ def run():
                     table_data = load_table_data(table_name)
                     found_rows = select(table_data, where_clause)
 
+                    if found_rows is None:
+                        continue
                     if not found_rows:
                         print("Записи не найдены.")
                         continue
 
-                    table_data = update(table_data, set_clause, where_clause)
-                    save_table_data(table_name, table_data)
-                    print(f"Обновлено записей: {len(found_rows)}.")
+                    result = update(table_data, set_clause, where_clause)
+                    if result is not None:
+                        save_table_data(table_name, result)
+                        cache_result = create_cacher()
+                        print(f"Обновлено записей: {len(found_rows)}.")
 
                 case "delete":
                     if len(args) < 6 or args[1] != "from":
@@ -189,13 +217,17 @@ def run():
                     table_data = load_table_data(table_name)
                     found_rows = select(table_data, where_clause)
 
+                    if found_rows is None:
+                        continue
                     if not found_rows:
                         print("Записи не найдены.")
                         continue
 
-                    table_data = delete(table_data, where_clause)
-                    save_table_data(table_name, table_data)
-                    print(f"Удалено записей: {len(found_rows)}.")
+                    result = delete(table_data, where_clause)
+                    if result is not None:
+                        save_table_data(table_name, result)
+                        cache_result = create_cacher()
+                        print(f"Удалено записей: {len(found_rows)}.")
 
                 case "info":
                     if len(args) != 2:
@@ -224,5 +256,8 @@ def run():
                 case _:
                     print(f"Функции {command} нет. Попробуйте снова.")
 
-        except (IndexError, ValueError) as error:
+        except (IndexError, KeyError, ValueError, OSError) as error:
             print(f"Ошибка: {error}")
+        except (EOFError, KeyboardInterrupt):
+            print("\nВыход из программы.")
+            break
