@@ -1,7 +1,8 @@
-.venv
+.venv/
 dist/
-src/primitive_db/__pycache__
+__pycache__/
 *.egg-info
 *.py[cod]
 db_meta.json
 data/
+.ruff_cache/

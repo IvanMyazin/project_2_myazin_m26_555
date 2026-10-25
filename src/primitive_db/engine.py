@@ -2,15 +2,15 @@ import shlex
 
 from prettytable import PrettyTable
 
+from .constants import META_FILE
 from .core import create_table, delete, drop_table, insert, select, update
 from .decorators import create_cacher
 from .parser import parse_set_clause, parse_values, parse_where_clause
 from .utils import load_metadata, load_table_data, save_metadata, save_table_data
 
-FILEPATH = "db_meta.json"
-
 
 def print_help():
+    """Вывести синтаксис доступных команд."""
     print("\n***База данных***")
     print("<command> create_table <имя> <столбец:тип> ...")
     print("<command> list_tables")
@@ -26,6 +26,7 @@ def print_help():
 
 
 def print_table(rows, columns):
+    """Вывести записи в таблице PrettyTable с порядком столбцов из схемы."""
     if not rows:
         print("Записи не найдены.")
         return
@@ -40,6 +41,7 @@ def print_table(rows, columns):
 
 
 def get_columns(metadata, table_name):
+    """Получить имена столбцов таблицы без обозначения типов."""
     columns = []
 
     for column in metadata[table_name]:
@@ -50,6 +52,7 @@ def get_columns(metadata, table_name):
 
 
 def run():
+    """Обрабатывать команды пользователя и сохранять успешные изменения."""
     print_help()
     cache_result = create_cacher()
 
@@ -76,7 +79,7 @@ def run():
         command = args[0]
 
         try:
-            metadata = load_metadata(FILEPATH)
+            metadata = load_metadata(META_FILE)
             match command:
                 case "create_table":
                     if len(args) < 3:
@@ -87,7 +90,7 @@ def run():
                     columns = args[2:]
                     result = create_table(metadata, table_name, columns)
                     if result is not None:
-                        save_metadata(FILEPATH, result)
+                        save_metadata(META_FILE, result)
                         cache_result = create_cacher()
 
                 case "list_tables":
@@ -105,7 +108,7 @@ def run():
                     table_name = args[1]
                     result = drop_table(metadata, table_name)
                     if result is not None:
-                        save_metadata(FILEPATH, result)
+                        save_metadata(META_FILE, result)
                         cache_result = create_cacher()
 
                 case "insert":

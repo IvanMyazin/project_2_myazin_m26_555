@@ -1,15 +1,21 @@
+from .constants import ID_COLUMN, ID_DEFINITION, VALID_TYPES
 from .decorators import confirm_action, handle_db_errors, log_time
-from .utils import load_table_data
-
-ALLOWED_TYPES = ["int", "str", "bool"]
+from .utils import load_table_data, remove_table_data
 
 
 @handle_db_errors
 def create_table(metadata, table_name, columns):
+    """Добавить схему таблицы с автоматически созданным столбцом ID."""
     if table_name in metadata:
         raise ValueError(f'Таблица "{table_name}" уже существует.')
 
-    new_columns = ["ID:int"]
+    if not table_name.isidentifier():
+        raise ValueError("Имя таблицы должно быть идентификатором Python.")
+
+    if not columns:
+        raise ValueError("Укажите хотя бы один столбец.")
+
+    new_columns = [ID_DEFINITION]
 
     for column in columns:
         if ":" not in column:
@@ -17,10 +23,10 @@ def create_table(metadata, table_name, columns):
 
         column_name, column_type = column.split(":", 1)
 
-        if column_type not in ALLOWED_TYPES:
+        if column_type not in VALID_TYPES:
             raise ValueError(f"Некорректный тип: {column_type}.")
 
-        if not column_name or any(
+        if not column_name.isidentifier() or any(
             existing.split(":", 1)[0] == column_name for existing in new_columns
         ):
             raise ValueError(f"Пустой или повторяющийся столбец: {column_name}.")
@@ -39,9 +45,11 @@ def create_table(metadata, table_name, columns):
 @handle_db_errors
 @confirm_action("удаление таблицы")
 def drop_table(metadata, table_name):
+    """Удалить схему и файл таблицы после подтверждения пользователем."""
     if table_name not in metadata:
         raise KeyError(table_name)
 
+    remove_table_data(table_name)
     del metadata[table_name]
 
     print(f'Таблица "{table_name}" успешно удалена.')
@@ -52,6 +60,7 @@ def drop_table(metadata, table_name):
 @handle_db_errors
 @log_time
 def insert(metadata, table_name, values):
+    """Проверить значения и добавить запись с новым ID в список данных."""
     if table_name not in metadata:
         raise KeyError(table_name)
 
@@ -64,9 +73,9 @@ def insert(metadata, table_name, values):
     new_id = 1
 
     if table_data:
-        new_id = max(row["ID"] for row in table_data) + 1
+        new_id = max(row[ID_COLUMN] for row in table_data) + 1
 
-    new_row = {"ID": new_id}
+    new_row = {ID_COLUMN: new_id}
 
     for column, value in zip(columns, values):
         column_name, column_type = column.split(":", 1)
@@ -86,6 +95,7 @@ def insert(metadata, table_name, values):
 @handle_db_errors
 @log_time
 def select(table_data, where_clause=None):
+    """Вернуть все записи или записи, подходящие под одно условие."""
     if where_clause is None:
         return table_data
 
@@ -105,6 +115,7 @@ def select(table_data, where_clause=None):
 
 @handle_db_errors
 def update(table_data, set_clause, where_clause):
+    """Изменить указанный столбец в записях, подходящих под условие."""
     if len(set_clause) != 1 or len(where_clause) != 1:
         raise ValueError("Укажите один столбец set и одно условие where.")
 
@@ -114,7 +125,7 @@ def update(table_data, set_clause, where_clause):
     set_column = list(set_clause.keys())[0]
     new_value = set_clause[set_column]
 
-    if set_column == "ID":
+    if set_column == ID_COLUMN:
         raise ValueError("ID создаётся автоматически и не изменяется.")
 
     # Проверяем все записи до изменения, чтобы ошибка не оставила часть изменений.
@@ -136,6 +147,7 @@ def update(table_data, set_clause, where_clause):
 @handle_db_errors
 @confirm_action("удаление записей")
 def delete(table_data, where_clause):
+    """Вернуть список без записей, подходящих под условие удаления."""
     if len(where_clause) != 1:
         raise ValueError("Укажите одно условие where.")
 
